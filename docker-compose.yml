@@ -1,0 +1,51 @@
+# One-command demo: docker compose up --build
+#   web  → http://localhost:3000   (sign in as any demo user)
+#   api  → http://localhost:4000/api/v1   (Swagger: http://localhost:4000/api/docs)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orqland_om
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orqland_om"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/orqland_om
+      PORT: "4000"
+      CORS_ORIGIN: http://localhost:3000
+      JWT_SECRET: change-me-in-production
+      PAYMENT_WEBHOOK_SECRET: dev-webhook-secret
+      ENABLE_SIMULATOR: "true"
+      ENABLE_DEMO_LOGIN: "true"
+    ports: ["4000:4000"]
+
+  # loads the sample workspace once (re-run any time to reset the demo data)
+  seed:
+    build: ./backend
+    depends_on:
+      api: { condition: service_started }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/orqland_om
+    command: ["sh", "-c", "sleep 5 && node dist/cli/migrate.js && node dist/cli/seed.js"]
+    restart: "no"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+    depends_on: [api]
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:
