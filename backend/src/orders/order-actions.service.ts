@@ -513,7 +513,7 @@ export function systemActor(workspaceId: string): AuthUser {
 }
 
 function isExpiredOffer(row: OrderRow): boolean {
-  return row.assignment?.status === 'OFFERED' && !!row.assignment.expiresAt && Date.parse(row.assignment.expiresAt) <= Date.now();
+  return row.assignment?.status === 'OFFERED' && row.assignment.expired;
 }
 
 function isUuid(v: string): boolean {

@@ -339,7 +339,7 @@ const ACTIONS: Record<ActionCode, ActionDef> = {
   ADD_PREP_TIME: {
     roles: [ADMIN],
     tone: 'neutral',
-    label: 'Add Extra Prep Time',
+    label: 'Add Extra Preparation Time',
     guard: (o, _a, wf) =>
       wf.preparation && isActive(o) && f(o, F.NOT_STARTED, F.AWAITING_PREPARATION, F.SCHEDULED, F.PREPARING),
     fields: () => [

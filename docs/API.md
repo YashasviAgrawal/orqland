@@ -68,11 +68,13 @@ Returned by every list and detail endpoint (detail adds `timeline`, `payments`, 
 | GET | `/auth/demo-users` | public (demo) | Users for the demo sign-in screen |
 | POST | `/auth/demo-login` | public (demo) | `{ userId }` → `{ token, user }` |
 | GET | `/auth/me` | any | Current user + workspace |
+| GET | `/workspace` | any | `{ id, name, code, address, isOpen }` |
+| PATCH | `/workspace/status` | Admin | `{ isOpen }` — open/close for **instant** orders (scheduled orders and bookings are still accepted). Audited as `WORKSPACE_OPENED` / `WORKSPACE_CLOSED` |
 
 ### Orders & bookings (Workspace Admin)
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/orders` | List. Query: `view` (`all,new,confirmed,in_progress,completed,cancelled,exceptions,processing,ongoing,upcoming`), `kind`, `fulfilmentType` (csv), `status` (csv), `paymentStatus`, `q` (order ID / customer / phone / item), `dateFrom`, `dateTo`, `dateField` (`created`/`scheduled`), `page`, `pageSize` |
+| GET | `/orders` | List. Query: `view` (`all,new,confirmed,in_progress,completed,cancelled,exceptions,processing,ongoing,upcoming,follow_up,support`; `follow_up` = active orders that are failed, returned or fulfilled-but-unpaid, so `new + processing + ongoing + upcoming + follow_up + completed + cancelled = all`; `support` = open return requests, returns being collected and refunds owed), `kind`, `fulfilmentType` (csv), `status` (csv), `paymentStatus`, `q` (order ID / customer / phone / item), `dateFrom`, `dateTo`, `dateField` (`created`/`scheduled`), `page`, `pageSize` |
 | GET | `/orders/summary` | Counts for every card/tab, revenue today vs yesterday, outstanding COD, pending handovers, pending refunds |
 | GET | `/orders/:id` | Detail (admins; agents/providers only for their own orders) |
 | POST | `/orders/:id/actions` | `{ action, input?, expectedVersion? }` → updated detail. Any role; the engine checks the role |

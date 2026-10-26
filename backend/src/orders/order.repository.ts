@@ -80,7 +80,7 @@ export interface OrderRow {
   slot_capacity: number | null;
   slot_reserved: number | null;
   slot_title: string | null;
-  items: Array<{ id: string; listingId: string; name: string; quantity: number; unitPricePaise: number; totalPaise: number; tags: string[]; durationMinutes: number }>;
+  items: Array<{ id: string; listingId: string; name: string; quantity: number; unitPricePaise: number; totalPaise: number; tags: string[]; durationMinutes: number; stock: number | null }>;
   assignment: null | {
     id: string;
     agentId: string;
@@ -91,6 +91,8 @@ export interface OrderRow {
     method: 'MANUAL' | 'AUTO';
     offeredAt: string;
     expiresAt: string | null;
+    /** evaluated on the database clock — the same clock that set expires_at */
+    expired: boolean;
     respondedAt: string | null;
     pickedUpAt: string | null;
     lastLat: number | null;
@@ -115,10 +117,10 @@ SELECT o.*,
   s.capacity AS slot_capacity, s.reserved AS slot_reserved, s.title AS slot_title,
   COALESCE((
     SELECT json_agg(json_build_object('id', i.id, 'listingId', i.listing_id, 'name', i.name, 'quantity', i.quantity,
-      'unitPricePaise', i.unit_price_paise, 'totalPaise', i.total_paise, 'tags', l.tags, 'durationMinutes', l.duration_minutes) ORDER BY i.name)
+      'unitPricePaise', i.unit_price_paise, 'totalPaise', i.total_paise, 'tags', l.tags, 'durationMinutes', l.duration_minutes, 'stock', l.stock) ORDER BY i.name)
     FROM order_items i JOIN listings l ON l.id = i.listing_id WHERE i.order_id = o.id), '[]'::json) AS items,
   (SELECT json_build_object('id', a.id, 'agentId', a.agent_id, 'agentName', u.name, 'agentPhone', u.phone, 'agentTitle', u.title,
-      'status', a.status, 'method', a.method, 'offeredAt', a.offered_at, 'expiresAt', a.expires_at, 'respondedAt', a.responded_at,
+      'status', a.status, 'method', a.method, 'offeredAt', a.offered_at, 'expiresAt', a.expires_at, 'expired', COALESCE(a.expires_at <= now(), false), 'respondedAt', a.responded_at,
       'pickedUpAt', a.picked_up_at, 'lastLat', a.last_lat, 'lastLng', a.last_lng, 'lastLocationAt', a.last_location_at)
    FROM delivery_assignments a JOIN users u ON u.id = a.agent_id
    WHERE a.order_id = o.id AND a.status IN ('OFFERED','ACCEPTED') LIMIT 1) AS assignment,

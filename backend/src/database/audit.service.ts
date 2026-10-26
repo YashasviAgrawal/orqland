@@ -4,7 +4,7 @@ import type { AuthUser } from '../common/auth/auth.types';
 
 export interface AuditEntry {
   workspaceId: string;
-  entityType: 'ORDER' | 'SLOT' | 'HANDOVER' | 'ASSIGNMENT' | 'PAYMENT';
+  entityType: 'ORDER' | 'SLOT' | 'HANDOVER' | 'ASSIGNMENT' | 'PAYMENT' | 'WORKSPACE';
   entityId: string;
   orderId?: string | null;
   action: string;

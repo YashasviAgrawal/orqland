@@ -37,7 +37,7 @@ Demo users: **Sanjay J** (admin), **Ravi Kumar / Suresh M / Arun P** (agents), *
 ```bash
 cd backend
 npm run test:unit                                    # 27 workflow-engine tests
-TEST_DATABASE_URL=postgres://…/orqland_om_test npm run test:e2e   # 23 integration tests on PostgreSQL
+TEST_DATABASE_URL=postgres://…/orqland_om_test npm run test:e2e   # 26 integration tests on PostgreSQL
 ```
 All 50 pass. The integration suite covers concurrency (no overselling, no overbooking, one winner when two admins accept at once), offer expiry and auto re-offer, failed delivery → return → reschedule, provider conflicts, payment retries and idempotent webhooks, and the full COD handover/discrepancy flow.
 

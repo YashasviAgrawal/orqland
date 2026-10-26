@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect } from 'react';
 import type { OrderDetail as Detail } from '@/lib/types';
 import { useApi, useNow } from '@/lib/hooks';
@@ -438,6 +439,12 @@ export function OrderDetailView({ d, focus }: { d: Detail; focus?: string }) {
                 />
               ))}
             </div>
+            {d.codCollections.some((c) => !c.settled) && (
+              <Link href="/admin/settlements" className="btn btn-sm btn-neutral" style={{ marginTop: 12 }}>
+                <Icon name="cash" size={14} />
+                View pending settlements
+              </Link>
+            )}
           </>
         )}
       </div>

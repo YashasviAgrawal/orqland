@@ -100,7 +100,7 @@ export interface Order {
   exception: string | null;
   exceptionLabel: string | null;
   customer: { id: string; name: string; phone: string; email: string | null };
-  items: Array<{ id: string; listingId: string; name: string; quantity: number; unitPricePaise: number; totalPaise: number; tags: string[]; durationMinutes: number }>;
+  items: Array<{ id: string; listingId: string; name: string; quantity: number; unitPricePaise: number; totalPaise: number; tags: string[]; durationMinutes: number; stock?: number | null }>;
   amounts: { subtotalPaise: number; deliveryFeePaise: number; discountPaise: number; totalPaise: number; codCollectedPaise: number };
   paymentMethod: PaymentMethod;
   schedule: { start: string | null; end: string | null; slotId: string | null; slotTitle: string | null; capacity: number | null; reserved: number | null; seats: number };
@@ -137,7 +137,7 @@ export interface OrderDetail extends Order {
   requests: Array<{ id: string; type: string; status: string; requestedByRole: string; reason: string | null; proposedStart: string | null; resolutionNote: string | null; createdAt: string; resolvedAt: string | null }>;
 }
 
-export type ViewKey = 'all' | 'new' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'exceptions' | 'processing' | 'ongoing' | 'upcoming';
+export type ViewKey = 'all' | 'new' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'exceptions' | 'processing' | 'ongoing' | 'upcoming' | 'follow_up' | 'support';
 
 export interface Summary {
   counts: Record<ViewKey, number>;

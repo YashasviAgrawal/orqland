@@ -5,7 +5,6 @@ import { api, ApiError, getSession, homeFor, post, Session, setSession } from '@
 import type { User } from '@/lib/types';
 import { Avatar, ErrorBox, Skeleton, Spinner } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
-import { Parcels3D } from '@/components/ui/Parcels3D';
 
 const ROLE_LABEL: Record<User['role'], string> = {
   WORKSPACE_ADMIN: 'Workspace admin',
@@ -56,7 +55,6 @@ export default function SignIn() {
           <span className="brand-mark">O</span>
           <span className="brand-name">Orqland</span>
         </div>
-        <Parcels3D className="login-3d" />
         <div className="big">Every order, booking and rupee, accounted for.</div>
         <div className="ticket" aria-hidden>
           <div className="spread">

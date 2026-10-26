@@ -6,7 +6,6 @@ import { refreshAll, useApi, useDebounced } from '@/lib/hooks';
 import { ago, day, FULFILMENT_LABEL, money, PRODUCT_TYPES, SERVICE_TYPES, time } from '@/lib/format';
 import type { FulfilmentType, Order, Paged, Summary, ViewKey } from '@/lib/types';
 import { Icon } from '@/components/ui/Icon';
-import { Parcels3D } from '@/components/ui/Parcels3D';
 import { CardSkeletons, Dialog, Drawer, Empty, ErrorBox, Spinner, useToast } from '@/components/ui/primitives';
 import { ActionBar, ActionEnvProvider } from './actions';
 import { OrderCard } from './OrderCard';
@@ -27,9 +26,21 @@ const TABS: Array<{ key: ViewKey; label: string }> = [
   { key: 'processing', label: 'Processing' },
   { key: 'ongoing', label: 'Ongoing' },
   { key: 'upcoming', label: 'Upcoming' },
+  { key: 'follow_up', label: 'Follow-up' },
+  { key: 'support', label: 'Support' },
   { key: 'completed', label: 'Completed' },
   { key: 'cancelled', label: 'Cancelled' },
   { key: 'exceptions', label: 'Exceptions' },
+];
+/** Stage sections of the “All” view, in the order of the Figma board. Together with New they cover every order. */
+const SECTIONS: Array<{ key: ViewKey; hint: string }> = [
+  { key: 'processing', hint: 'Accepted and being prepared or ready to go' },
+  { key: 'ongoing', hint: 'Out for delivery or in service right now' },
+  { key: 'upcoming', hint: 'Scheduled for a later time' },
+  { key: 'follow_up', hint: 'Failed, returned, or done but waiting for payment' },
+  { key: 'support', hint: 'Return requests and refunds' },
+  { key: 'cancelled', hint: 'Cancelled and rejected' },
+  { key: 'completed', hint: 'Finished and paid' },
 ];
 const VIEW_TITLE: Record<ViewKey, string> = {
   all: 'All orders & bookings',
@@ -42,6 +53,8 @@ const VIEW_TITLE: Record<ViewKey, string> = {
   processing: 'Processing',
   ongoing: 'Ongoing',
   upcoming: 'Upcoming',
+  follow_up: 'Follow-up',
+  support: 'Support',
 };
 const VIEW_EMPTY: Record<ViewKey, string> = {
   all: 'Orders and bookings will appear here as customers place them.',
@@ -54,7 +67,10 @@ const VIEW_EMPTY: Record<ViewKey, string> = {
   processing: 'Nothing is being prepared.',
   ongoing: 'Nothing is out for delivery or in service.',
   upcoming: 'No scheduled deliveries, pickups or bookings.',
+  follow_up: 'No failed, returned or unpaid orders to follow up.',
+  support: 'No return requests or refunds waiting.',
 };
+const IN_LANE = ['PENDING_REVIEW', 'CLARIFICATION_REQUESTED'];
 
 export function OrdersBoard() {
   const toast = useToast();
@@ -84,16 +100,24 @@ export function OrdersBoard() {
     return p.toString();
   }, [kind, type, q, date, dateField]);
 
+  // “All” as cards is shown the Figma way: a New entries lane, then one section per stage with “View all”
+  const sectioned = view === 'all' && layout === 'cards' && !q.trim();
   const summary = useApi<Summary>(`/orders/summary?${filterQs}`, 15000);
-  const list = useApi<Paged<Order>>(`/orders?view=${view}&pageSize=${pageSize}&${filterQs}`, 15000);
+  const list = useApi<Paged<Order>>(sectioned ? null : `/orders?view=${view}&pageSize=${pageSize}&${filterQs}`, 15000);
   const showLane = view === 'all' && !q && (summary.data?.counts.new ?? 0) > 0;
   const lane = useApi<Paged<Order>>(showLane ? `/orders?view=new&pageSize=20&${filterQs}` : null, 15000);
 
   const counts = summary.data?.counts;
   const typeOptions = kind === 'PRODUCT' ? PRODUCT_TYPES : kind === 'SERVICE' ? SERVICE_TYPES : [...PRODUCT_TYPES, ...SERVICE_TYPES];
   const filtersOn = !!(kind || type || q || date);
-  const listItems = (list.data?.items ?? []).filter((o) => !(showLane && o.status.order === 'PENDING_REVIEW'));
-  const reviewable = (lane.data?.items ?? []).filter((o) => o.status.order === 'PENDING_REVIEW');
+  const listItems = (list.data?.items ?? []).filter((o) => !(showLane && IN_LANE.includes(o.status.order)));
+  const laneItems = lane.data?.items ?? [];
+  const reviewable = laneItems.filter((o) => o.status.order === 'PENDING_REVIEW');
+
+  function viewAll(key: ViewKey) {
+    setView(key);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   async function doAcceptAll() {
     setBulkBusy(true);
@@ -137,7 +161,9 @@ export function OrdersBoard() {
               </Link>
             )}
           </div>
-          <Parcels3D className="hero-art" />
+          <span className="hero-rupee" aria-hidden>
+            ₹
+          </span>
         </div>
         <div className="stat-tiles">
           {CARDS.map((c) => (
@@ -206,7 +232,7 @@ export function OrdersBoard() {
       </section>
 
       {/* new entries lane (Figma) */}
-      {showLane && reviewable.length > 0 && (
+      {showLane && laneItems.length > 0 && (
         <section className="panel" aria-label="New entries">
           <div className="panel-head">
             <h2 className="h2">New entries</h2>
@@ -215,19 +241,38 @@ export function OrdersBoard() {
             <button className="btn btn-sm btn-ghost" onClick={() => refreshAll()} aria-label="Refresh">
               <Icon name="refresh" size={15} />
             </button>
-            <button className="btn btn-sm btn-blue" onClick={() => setAcceptAll(true)}>
-              Accept all
-            </button>
+            {reviewable.length > 0 && (
+              <button className="btn btn-sm btn-blue" onClick={() => setAcceptAll(true)}>
+                Accept all
+              </button>
+            )}
           </div>
           <div className="lane">
-            {reviewable.map((o) => (
+            {laneItems.map((o) => (
               <OrderCard key={o.id} o={o} variant="new" onOpen={(x) => setOpen({ id: x.id })} />
             ))}
           </div>
         </section>
       )}
 
+      {/* stage sections (Figma) */}
+      {sectioned && !counts && <CardSkeletons n={4} />}
+      {sectioned && summary.error && !counts && <ErrorBox message={summary.error.message} onRetry={summary.reload} />}
+      {sectioned && counts && counts.all === 0 && (
+        <section className="panel">
+          <Empty icon="orders" title={filtersOn ? 'No matches' : 'All clear'}>
+            {filtersOn ? 'Try a different search or clear the filters.' : VIEW_EMPTY.all}
+          </Empty>
+        </section>
+      )}
+      {sectioned &&
+        counts &&
+        SECTIONS.filter((s) => counts[s.key] > 0).map((s) => (
+          <StageSection key={s.key} view={s.key} hint={s.hint} total={counts[s.key]} filterQs={filterQs} onOpen={(o) => setOpen({ id: o.id })} onViewAll={() => viewAll(s.key)} />
+        ))}
+
       {/* main list */}
+      {!sectioned && (
       <section className="panel" aria-label={VIEW_TITLE[view]}>
         <div className="panel-head">
           <h2 className="h2">{showLane ? 'Everything else' : VIEW_TITLE[view]}</h2>
@@ -255,6 +300,7 @@ export function OrdersBoard() {
           </button>
         )}
       </section>
+      )}
 
       {open && (
         <Drawer
@@ -289,6 +335,45 @@ export function OrdersBoard() {
         </Dialog>
       )}
     </ActionEnvProvider>
+  );
+}
+
+const SECTION_SIZE = 6;
+
+/** One stage of the “All” board: the first few cards in a lane and a “View all” that opens the full tab. */
+function StageSection({ view, hint, total, filterQs, onOpen, onViewAll }: { view: ViewKey; hint: string; total: number; filterQs: string; onOpen: (o: Order) => void; onViewAll: () => void }) {
+  const q = useApi<Paged<Order>>(`/orders?view=${view}&pageSize=${SECTION_SIZE}&${filterQs}`, 15000);
+  return (
+    <section className="panel" aria-label={VIEW_TITLE[view]}>
+      <div className="panel-head">
+        <div className="grow">
+          <div className="row">
+            <h2 className="h2">{VIEW_TITLE[view]}</h2>
+            <span className={`count-badge${view === 'follow_up' ? ' red' : ''}`}>{total}</span>
+          </div>
+          <div className="help">{hint}</div>
+        </div>
+        <button className="btn btn-sm btn-blue" onClick={onViewAll}>
+          View all
+          <Icon name="chevronRight" size={14} />
+        </button>
+      </div>
+      {q.error && !q.data && <ErrorBox message={q.error.message} onRetry={q.reload} />}
+      {!q.data && !q.error && <CardSkeletons n={2} />}
+      {q.data && (
+        <div className="lane">
+          {q.data.items.map((o) => (
+            <OrderCard key={o.id} o={o} onOpen={onOpen} />
+          ))}
+          {total > q.data.items.length && (
+            <button className="lane-more" onClick={onViewAll}>
+              <b>+{total - q.data.items.length}</b>
+              <span>more in {VIEW_TITLE[view]}</span>
+            </button>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

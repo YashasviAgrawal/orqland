@@ -2,12 +2,13 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { getSession, homeFor, post, Session, setSession } from '@/lib/api';
+import { createPortal } from 'react-dom';
+import { ApiError, getSession, homeFor, patch, post, Session, setSession } from '@/lib/api';
 import { refreshAll, useApi, useSession } from '@/lib/hooks';
 import { ago } from '@/lib/format';
 import type { Notification, Role, Summary } from '@/lib/types';
 import { Icon, IconName } from '@/components/ui/Icon';
-import { Avatar, Spinner } from '@/components/ui/primitives';
+import { Avatar, Dialog, Spinner, useToast } from '@/components/ui/primitives';
 
 /** Client-side gate: only the given roles may see the page. */
 export function useGate(roles: Role[]): Session | null {
@@ -112,6 +113,64 @@ export function NotificationBell() {
   );
 }
 
+/** Figma header “Open / Closed”: whether the workspace takes instant orders. Scheduled bookings still come in. */
+function WorkspaceStatus() {
+  const q = useApi<{ isOpen: boolean }>('/workspace', 60000);
+  const toast = useToast();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!q.data) return null;
+  const open = q.data.isOpen;
+
+  async function setOpen(next: boolean) {
+    setBusy(true);
+    try {
+      await patch('/workspace/status', { isOpen: next });
+      toast(next ? 'Workspace is open for instant orders' : 'Workspace closed — instant orders are paused');
+      setConfirm(false);
+      q.reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not change the status', true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        className={`ws-status${open ? ' on' : ''}`}
+        onClick={() => (open ? setConfirm(true) : setOpen(true))}
+        disabled={busy}
+        title={open ? 'Taking instant orders — click to close' : 'Not taking instant orders — click to open'}
+      >
+        <span className="dot" />
+        {open ? 'Open' : 'Closed'}
+      </button>
+      {/* portalled: the top bar's backdrop-filter would otherwise trap the fixed-position dialog inside it */}
+      {confirm && createPortal(
+        <Dialog
+          title="Close the workspace?"
+          onClose={() => setConfirm(false)}
+          footer={
+            <>
+              <button className="btn btn-neutral" onClick={() => setConfirm(false)}>
+                Stay open
+              </button>
+              <button className="btn btn-danger" onClick={() => setOpen(false)} disabled={busy}>
+                {busy && <Spinner />}Close workspace
+              </button>
+            </>
+          }
+        >
+          <p className="muted">Customers won’t be able to place instant orders until you open again. Scheduled orders and bookings are still accepted, and orders already in progress are not affected.</p>
+        </Dialog>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function UserMenu({ session }: { session: Session }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -201,6 +260,7 @@ export function AdminShell({ title, children, actions }: { title: string; childr
           </button>
           <h1 className="h2 grow ellipsis">{title}</h1>
           {actions}
+          <WorkspaceStatus />
           <NotificationBell />
           <UserMenu session={session} />
         </header>

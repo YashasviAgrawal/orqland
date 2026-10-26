@@ -7,8 +7,13 @@ import { ORDER_SELECT, OrderRow, findOrderRow, iso } from './order.repository';
 import { toOrderView } from './order.view';
 import { workflowOf } from '../domain/workflows';
 
-export const VIEWS = ['all', 'new', 'confirmed', 'in_progress', 'completed', 'cancelled', 'exceptions', 'processing', 'ongoing', 'upcoming'] as const;
+export const VIEWS = ['all', 'new', 'confirmed', 'in_progress', 'completed', 'cancelled', 'exceptions', 'processing', 'ongoing', 'upcoming', 'follow_up', 'support'] as const;
 export type OrderViewFilter = (typeof VIEWS)[number];
+
+const ACTIVE = `o.order_status IN ('CONFIRMED','IN_PROGRESS')`;
+const PROCESSING = `'AWAITING_PREPARATION','PREPARING','READY'`;
+const ONGOING = `'PICKED_UP','OUT_FOR_DELIVERY','PROVIDER_EN_ROUTE','CHECKED_IN','IN_SERVICE'`;
+const UPCOMING = `'SCHEDULED','AWAITING_SCHEDULE'`;
 
 /** SQL predicate for each dashboard card / tab (§5). */
 const VIEW_SQL: Record<OrderViewFilter, string> = {
@@ -19,9 +24,14 @@ const VIEW_SQL: Record<OrderViewFilter, string> = {
   completed: `o.order_status = 'COMPLETED'`,
   cancelled: `o.order_status IN ('CANCELLED','REJECTED')`,
   exceptions: `o.exception IS NOT NULL`,
-  processing: `o.order_status IN ('CONFIRMED','IN_PROGRESS') AND o.fulfilment_status IN ('AWAITING_PREPARATION','PREPARING','READY')`,
-  ongoing: `o.order_status IN ('CONFIRMED','IN_PROGRESS') AND o.fulfilment_status IN ('PICKED_UP','OUT_FOR_DELIVERY','PROVIDER_EN_ROUTE','CHECKED_IN','IN_SERVICE')`,
-  upcoming: `o.order_status IN ('CONFIRMED','IN_PROGRESS') AND o.fulfilment_status IN ('SCHEDULED','AWAITING_SCHEDULE')`,
+  processing: `${ACTIVE} AND o.fulfilment_status IN (${PROCESSING})`,
+  ongoing: `${ACTIVE} AND o.fulfilment_status IN (${ONGOING})`,
+  upcoming: `${ACTIVE} AND o.fulfilment_status IN (${UPCOMING})`,
+  // every other active order — failed, returned, or fulfilled but awaiting payment — so the stage sections never drop one
+  follow_up: `${ACTIVE} AND o.fulfilment_status NOT IN (${PROCESSING},${ONGOING},${UPCOMING})`,
+  // after-sales (Figma "Support"): open return requests, returns being collected, refunds still owed
+  support: `(o.fulfilment_status = 'RETURN_APPROVED' OR o.refund_status IN ('PENDING','FAILED')
+    OR EXISTS (SELECT 1 FROM order_requests r WHERE r.order_id = o.id AND r.type = 'RETURN' AND r.status = 'PENDING'))`,
 };
 
 export interface ListFilters {

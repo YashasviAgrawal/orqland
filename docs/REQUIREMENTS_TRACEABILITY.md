@@ -7,7 +7,7 @@ Every requirement in the document, where it is implemented, and how it was verif
 ✅ **Done** — implemented and checked visually / by type-check.
 🔌 **Hook ready** — the document says this must be agreed with OpenPurpl first (§11); the module exposes a clean integration point and does not ship a third-party integration.
 
-**Verification environment note:** the workflow engine, all services, SQL, migrations and seed were executed and tested against PostgreSQL 16; the full UI was bundled and driven in Chromium against those real services (screenshots in `docs/screenshots`). The build sandbox had no access to the npm registry, so the final `nest build` / `next build` with installed packages has to be run once on a normal machine (`docker compose up --build` or `npm install`). All source was type-checked against its own types.
+**Verification:** re-audited against the requirements PDF (including its Figma pages) on 27 Oct 2026 with real installed packages: `nest build` and `next build` succeed, **27 unit + 26 integration tests pass** on PostgreSQL 16 (integration suite run twice to rule out flakiness), and every admin, agent and provider screen was checked in a headless browser. That audit fixed one bug (offer expiry compared the database clock with the API server clock, so a clock difference between the two could let an expired offer be accepted) and one brittle test (it assumed a capacity-2 slot was empty), and added the items marked *(audit)* below.
 
 ---
 
@@ -116,13 +116,13 @@ All buttons are returned by the API per order and rendered only when valid for t
 
 | Button | Status | Code / location |
 |---|---|---|
-| View Details | ✅ | card/row click → detail drawer; “Open full page” |
+| View Details | ✅ | **View details** in every card’s ⋯ menu *(audit)*; card title / table row click → detail drawer; “Open full page” |
 | Accept Order / Confirm Booking | ✅ tested | `ACCEPT` (label adapts) |
 | Reject Order / Reject Booking | ✅ tested | `REJECT` |
 | Cancel Order / Cancel Booking | ✅ tested | `CANCEL` |
 | Confirm Cancellation | ✅ tested | `CONFIRM_CANCELLATION` |
 | Start Preparation | ✅ tested | `START_PREPARATION` |
-| Add Extra Preparation Time | ✅ tested | `ADD_PREP_TIME` (+ “+5 min” quick button) |
+| Add Extra Preparation Time | ✅ tested | `ADD_PREP_TIME`, labelled exactly as in the document *(audit)* (+ “+5 min” quick button) |
 | Mark Ready | ✅ tested | `MARK_READY` |
 | Confirm Schedule | ✅ tested | `CONFIRM_SCHEDULE` |
 | Reschedule | ✅ tested | `RESCHEDULE` (slot picker or custom time) |
@@ -139,7 +139,7 @@ All buttons are returned by the API per order and rendered only when valid for t
 | Approve Return | ✅ tested | `APPROVE_RETURN` (failed delivery or customer return) |
 | View Payment Details | ✅ | `VIEW_PAYMENT_DETAILS` → payment section (attempts, cash collections, refund) |
 | Record COD Collected | ✅ tested | `RECORD_COD_COLLECTED` |
-| View Pending Settlements | ✅ | COD settlement page |
+| View Pending Settlements | ✅ | **View pending settlements** button on a COD order’s payment section while cash is unsettled *(audit)*; COD settlement page; revenue card “cash with agents” link |
 | Confirm Cash Received | ✅ tested | settlements → confirm |
 | Record Discrepancy | ✅ tested | settlements → discrepancy |
 | Resolve Discrepancy | ✅ tested | settlements → resolve |
@@ -182,7 +182,7 @@ All buttons are returned by the API per order and rendered only when valid for t
 | Notify users and retain history | ✅ tested | notifications + `audit_logs` |
 | Agent rejection reason recorded, order back to unassigned queue | ✅ tested | |
 | Manual or automatic reassignment | ✅ tested | `REASSIGN_AGENT`, auto re-offer |
-| Expire unaccepted assignments after a configurable period | ✅ tested | `assignmentExpirySeconds`; background sweep + lazy expiry |
+| Expire unaccepted assignments after a configurable period | ✅ tested | `assignmentExpirySeconds`; background sweep + lazy expiry; expiry is evaluated on the database clock *(audit fix)* |
 | Restrict reassignment after pickup to authorised actions | ✅ tested | admin only, reason required, audited |
 | Failed delivery: reason + notes/evidence | ✅ tested | |
 | Admin can retry, reschedule, reassign, approve return or cancel | ✅ tested | all five offered on `DELIVERY_FAILED` |
@@ -227,7 +227,7 @@ All buttons are returned by the API per order and rendered only when valid for t
 | Audit logs: timestamp, user, reason for status changes | ✅ tested | `audit_logs` with from/to state |
 | Separate order, fulfilment, payment and COD settlement status | ✅ tested | four columns (+ refund) |
 | Capacity validation, duplicate-request protection, safe transitions | ✅ tested | constraints, idempotency keys, row locks, optimistic `version`, terminal-state trigger |
-| Automated tests | ✅ | 27 unit + 23 integration tests, all passing |
+| Automated tests | ✅ | 27 unit + 26 integration tests, all passing |
 | Setup instructions, API documentation, deployment guidance | ✅ | [README](../README.md), [DEPLOYMENT.md](DEPLOYMENT.md), Swagger at `/api/docs` |
 
 ## §11 Deliverables
@@ -258,6 +258,13 @@ All buttons are returned by the API per order and rendered only when valid for t
 * **Request Clarification** with customer reply (document §4 stage 2).
 * **Assign/Reassign Provider**, **Report Provider Unavailable**, **Add Meeting Details**, **Start Travel**, **Retry Payment**, **Update Refund Status**, **Confirm Return Received**.
 * Agent **on/off duty**, in-app **notifications** for every role, **customer simulator** for the demo.
+
+### Figma alignment added in the audit
+
+* **Stage sections on “All”** — New entries, then Processing, Ongoing, Upcoming, Follow-up, Support, Cancelled and Completed, each with **View all →** like the Figma board. A new `follow_up` view (failed, returned, fulfilled-but-unpaid) guarantees no order falls between sections (integration-tested: the sections add up to the total).
+* **Support tab** (Figma) — open return requests, returns being collected, refunds owed (`support` view, integration-tested).
+* **Open / Closed** workspace status in the header (Figma) — admin can close the workspace for instant orders with a confirmation dialog; scheduled orders and bookings still come in; audited (integration-tested).
+* **Distance and Stock left** on new product entries (Figma “DISTANCE / STOCK”), low stock highlighted.
 
 ## Items in the Figma that need a decision
 

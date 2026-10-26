@@ -196,7 +196,7 @@ export function OrderCard({ o, onOpen, variant = 'standard' }: { o: Order; onOpe
         <div className="spread">
           <span className="ocard-code">{o.code}</span>
           {isNew ? (
-            <span className="row" style={{ color: 'var(--blue-ink)', fontSize: 12.5, fontWeight: 600 }}>
+            <span className="row" style={{ color: 'var(--blue-ink)', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>
               <span className="dot" style={{ width: 7, height: 7, borderRadius: 9, background: 'var(--blue)', display: 'inline-block' }} />
               Received {ago(o.createdAt)}
             </span>
@@ -225,6 +225,22 @@ export function OrderCard({ o, onOpen, variant = 'standard' }: { o: Order; onOpe
             ))}
           </div>
         ) : null}
+        {isNew && o.kind === 'PRODUCT' && (o.delivery.distanceKm != null || item?.stock != null) && (
+          <div className="facts">
+            {o.delivery.distanceKm != null && (
+              <div>
+                <span>Distance</span>
+                <b className="num">{o.delivery.distanceKm} km</b>
+              </div>
+            )}
+            {item?.stock != null && (
+              <div>
+                <span>Stock left</span>
+                <b className={`num${item.stock <= 5 ? ' low' : ''}`}>{plural(item.stock, 'unit')}</b>
+              </div>
+            )}
+          </div>
+        )}
 
         {showRing ? (
           <div className="row" style={{ gap: 14, marginTop: 'auto' }}>
@@ -312,7 +328,7 @@ export function OrderCard({ o, onOpen, variant = 'standard' }: { o: Order; onOpe
           </div>
         )}
         <Callouts o={o} />
-        <ActionBar order={o} hide={o.prep ? ['ADD_PREP_TIME'] : []} />
+        <ActionBar order={o} hide={o.prep ? ['ADD_PREP_TIME'] : []} onDetails={() => onOpen(o)} />
       </div>
     </article>
   );

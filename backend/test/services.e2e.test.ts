@@ -23,6 +23,7 @@ import { ScheduleService } from '../src/schedule/schedule.service';
 import { SettlementsService } from '../src/settlements/settlements.service';
 import { PaymentsService } from '../src/payments/payments.service';
 import { AgentController, DeliveryController, ProviderController } from '../src/delivery/delivery.controller';
+import { WorkspaceController } from '../src/meta/workspace.controller';
 import type { AuthUser } from '../src/common/auth/auth.types';
 import { translateDbError } from '../src/common/errors';
 
@@ -115,7 +116,7 @@ after(async () => {
 describe('Dashboard queries on the sample data', () => {
   test('every card / tab view loads and counts match the list totals', async () => {
     const s = await queries.summary(admin, {});
-    for (const view of ['all', 'new', 'confirmed', 'in_progress', 'completed', 'cancelled', 'exceptions', 'processing', 'ongoing', 'upcoming'] as const) {
+    for (const view of ['all', 'new', 'confirmed', 'in_progress', 'completed', 'cancelled', 'exceptions', 'processing', 'ongoing', 'upcoming', 'follow_up', 'support'] as const) {
       const l = await queries.list(admin, { view, pageSize: 100 });
       assert.equal(l.total, s.counts[view], `view ${view}`);
       for (const o of l.items) assert.ok(Array.isArray(o.actions));
@@ -123,6 +124,24 @@ describe('Dashboard queries on the sample data', () => {
     assert.ok(s.counts.new >= 7);
     assert.ok(s.counts.exceptions >= 6);
     assert.ok(s.cod.outstandingPaise > 0);
+  });
+
+  test('the “All” board sections cover every order exactly once', async () => {
+    const s = await queries.summary(admin, {});
+    const sections = ['new', 'processing', 'ongoing', 'upcoming', 'follow_up', 'completed', 'cancelled'] as const;
+    assert.equal(sections.reduce((n, v) => n + s.counts[v], 0), s.counts.all, 'no order is dropped or shown twice');
+    assert.ok(s.counts.follow_up > 0, 'seed has failed / returned orders to follow up');
+  });
+
+  test('support view lists return requests and refunds owed', async () => {
+    const l = await queries.list(admin, { view: 'support', pageSize: 100 });
+    for (const o of l.items) {
+      const d = await detail(o.id);
+      assert.ok(
+        d.status.refund === 'PENDING' || d.status.refund === 'FAILED' || d.status.fulfilment === 'RETURN_APPROVED' || d.requests.some((r) => r.type === 'RETURN' && r.status === 'PENDING'),
+        `${o.code} belongs in support`,
+      );
+    }
   });
 
   test('filters: kind, fulfilment type, search by code / customer, date', async () => {
@@ -386,6 +405,8 @@ describe('Bookings, capacity & availability', () => {
 
   test('no-show → reschedule via slot; provider requests rescheduling; customer reschedule request', async () => {
     const slot = await slotFor(L.spa, 'SERVICE', 1, 1);
+    // the slot may already hold seed bookings (capacity > 1), so compare against what it held before
+    const reservedBefore = (await db.one<{ reserved: number }>('SELECT reserved FROM slots WHERE id = $1', [slot]))?.reserved;
     const b = await place(C.deepak, { fulfilmentType: 'AT_PROVIDER_LOCATION', items: [{ listingId: L.spa, quantity: 1 }], paymentMethod: 'CASH', slotId: slot });
     let d = await detail(b.id);
     assert.equal(d.status.order, 'CONFIRMED');
@@ -397,7 +418,7 @@ describe('Bookings, capacity & availability', () => {
     assert.equal(d.status.fulfilment, 'SCHEDULED');
     assert.equal(d.schedule.slotId, newSlot);
     // old slot was released
-    assert.equal((await db.one<{ reserved: number }>('SELECT reserved FROM slots WHERE id = $1', [slot]))?.reserved, 0);
+    assert.equal((await db.one<{ reserved: number }>('SELECT reserved FROM slots WHERE id = $1', [slot]))?.reserved, reservedBefore);
 
     await act(priya, b.id, 'REQUEST_RESCHEDULING', { reason: 'Training day', proposedStart: new Date(Date.now() + 4 * 86400000).toISOString() });
     await expectError(act(priya, b.id, 'REQUEST_RESCHEDULING', { reason: 'again' }), 'ACTION_NOT_ALLOWED');
@@ -517,5 +538,22 @@ describe('Customer requests', () => {
     const r = await actions.bulkAccept(admin, news, true);
     assert.equal(r.accepted, news.length);
     assert.equal((await queries.summary(admin, {})).counts.new, 1, 'only the clarification-requested order remains');
+  });
+});
+
+describe('Workspace open / closed', () => {
+  test('closing pauses instant orders only, is audited, and reopening resumes them', async () => {
+    const ws = new WorkspaceController(db, new AuditService());
+    assert.equal((await ws.get(admin)).isOpen, true);
+    assert.equal((await ws.setStatus(admin, { isOpen: false })).isOpen, false);
+    await expectError(place(C.anitha, { fulfilmentType: 'DELIVERY', items: [{ listingId: L.coffee, quantity: 1 }], paymentMethod: 'UPI', deliveryAddress: '7 Gandhi Road' }), 'WORKSPACE_CLOSED');
+    // a scheduled booking is still accepted while closed
+    const booked = await place(C.deepak, { fulfilmentType: 'AT_PROVIDER_LOCATION', items: [{ listingId: L.spa, quantity: 1 }], paymentMethod: 'CASH', slotId: await slotFor(L.spa, 'SERVICE', 1, 2) });
+    assert.ok(booked.id);
+    const log = await db.one<{ action: string; actor_name: string }>(`SELECT action, actor_name FROM audit_logs WHERE entity_type = 'WORKSPACE' ORDER BY id DESC LIMIT 1`);
+    assert.equal(log?.action, 'WORKSPACE_CLOSED');
+    assert.equal(log?.actor_name, admin.name);
+    await ws.setStatus(admin, { isOpen: true });
+    assert.ok((await place(C.anitha, { fulfilmentType: 'DELIVERY', items: [{ listingId: L.coffee, quantity: 1 }], paymentMethod: 'UPI', deliveryAddress: '7 Gandhi Road' })).id);
   });
 });

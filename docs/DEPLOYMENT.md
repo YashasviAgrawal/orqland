@@ -39,7 +39,7 @@ createdb orqland_om_test
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/orqland_om_test npm run test:e2e
 ```
 * **Unit (27 tests)** — every fulfilment type's flow, role restrictions, cancellation rules, payment rules, plus an exhaustive check across all 11 types × every status × every role that the engine never offers an action it would refuse.
-* **Integration (23 tests)** — run against a real PostgreSQL database with the sample seed: dashboard counts/filters, role-scoped boards, full delivery + COD + handover + discrepancy flow, concurrent overselling and overbooking attempts, double-accept races, stale versions, offer expiry & auto re-offer, agent rejection, failed delivery → return → reschedule, provider conflicts, no-show/reschedule/requests, events, workshop session completion, payment failure/retry/idempotent webhooks, customer cancellation and returns, bulk accept.
+* **Integration (26 tests)** — run against a real PostgreSQL database with the sample seed: dashboard counts/filters, role-scoped boards, full delivery + COD + handover + discrepancy flow, concurrent overselling and overbooking attempts, double-accept races, stale versions, offer expiry & auto re-offer, agent rejection, failed delivery → return → reschedule, provider conflicts, no-show/reschedule/requests, events, workshop session completion, payment failure/retry/idempotent webhooks, customer cancellation and returns, bulk accept.
 * The integration test resets the test database each run — never point `TEST_DATABASE_URL` at real data.
 
 ## Production checklist

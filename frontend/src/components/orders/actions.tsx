@@ -201,7 +201,7 @@ function ActionButton({ a, order, runner, className = '', size = '' }: { a: Acti
  * - card: one main action, one pair (e.g. Accept / Decline), helpful links, the rest under “More”.
  * - full: every action, grouped by importance (detail panel).
  */
-export function ActionBar({ order, variant = 'card', hide = [], prefer = [], onDone }: { order: Order; variant?: 'card' | 'full' | 'mobile'; hide?: string[]; prefer?: string[]; onDone?: (code: string) => void }) {
+export function ActionBar({ order, variant = 'card', hide = [], prefer = [], onDone, onDetails }: { order: Order; variant?: 'card' | 'full' | 'mobile'; hide?: string[]; prefer?: string[]; onDone?: (code: string) => void; onDetails?: () => void }) {
   const runner = useActionRunner(order, onDone);
   const actions = order.actions.filter((a) => !hide.includes(a.code));
   const [menu, setMenu] = useState(false);
@@ -267,7 +267,7 @@ export function ActionBar({ order, variant = 'card', hide = [], prefer = [], onD
     return { main, pair, links: shownLinks, rest, all: [] as ActionDescriptor[] };
   }, [actions, variant, prefer]);
 
-  if (!actions.length) return null;
+  if (!actions.length && !onDetails) return null;
 
   if (variant === 'full') {
     const groups: Array<[string, ActionDescriptor[]]> = [
@@ -312,13 +312,25 @@ export function ActionBar({ order, variant = 'card', hide = [], prefer = [], onD
       {layout.links.map((a) => (
         <ActionButton key={a.code} a={a} order={order} runner={runner} size={size} />
       ))}
-      {layout.rest.length > 0 && (
+      {(layout.rest.length > 0 || onDetails) && (
         <div className="more-wrap" ref={menuRef}>
-          <button type="button" className={`btn btn-neutral icon-btn${size ? ` btn-${size}` : ''}`} aria-haspopup="menu" aria-expanded={menu} aria-label="More actions" onClick={(e) => toggleMenu(e.currentTarget, layout.rest.length)}>
+          <button type="button" className={`btn btn-neutral icon-btn${size ? ` btn-${size}` : ''}`} aria-haspopup="menu" aria-expanded={menu} aria-label="More actions" onClick={(e) => toggleMenu(e.currentTarget, layout.rest.length + (onDetails ? 1 : 0))}>
             <Icon name="more" />
           </button>
           {menu && createPortal(
             <div className="menu floating" role="menu" ref={popRef} style={menuPos}>
+              {onDetails && (
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    onDetails();
+                  }}
+                >
+                  <Icon name="eye" size={15} />
+                  View details
+                </button>
+              )}
               {layout.rest.map((a) => {
                 const l = a.kind === 'link' ? linkHref(a.code, order) : null;
                 if (l)

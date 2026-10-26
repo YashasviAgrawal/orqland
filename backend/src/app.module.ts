@@ -23,6 +23,7 @@ import { PaymentsService } from './payments/payments.service';
 import { PaymentsController } from './payments/payments.controller';
 import { SimulatorController } from './simulator/simulator.controller';
 import { MetaController } from './meta/meta.controller';
+import { WorkspaceController } from './meta/workspace.controller';
 import { AssignmentExpiryJob } from './jobs/assignment-expiry.job';
 
 /**
@@ -34,6 +35,7 @@ import { AssignmentExpiryJob } from './jobs/assignment-expiry.job';
   controllers: [
     AuthController,
     MetaController,
+    WorkspaceController,
     OrdersController,
     DeliveryController,
     AgentController,
